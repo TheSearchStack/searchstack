@@ -1,0 +1,119 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: solr
+spec:
+  selector:
+    matchLabels:
+      app: solr-app # has to match .spec.template.metadata.labels
+  serviceName: solr
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: solr-app # has to match .spec.selector.matchLabels
+    spec:
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: volsolr
+        persistentVolumeClaim:
+          claimName: solr-pv-claim
+      containers:
+      - name: solr
+        image: solr:8.0.0
+        volumeMounts:
+        - name: volsolr
+          mountPath: /data
+        ports:
+        - name: solr-port
+          containerPort: 32181
+        livenessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          httpGet:
+            scheme: "HTTP"
+            path: /solr/admin/info/health
+            port: 8983
+        readinessProbe:
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          httpGet:
+            scheme: "HTTP"
+            path: /solr/admin/info/health
+            port: 8983
+        env:
+          - name: SOLR_PORT
+            value: "8983"
+          - name: ZK_HOST
+            value: "zookeeper-service:32181"
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        command: ["/bin/sh","-c"]
+        args: [ "export SOLR_HOST=${HOSTNAME}.solr.default.svc.cluster.local; export SOLR_HOME=/data/data/${HOSTNAME}; export SOLR_LOGS_DIR=/data/logs/${HOSTNAME}; /opt/solr/bin/solr -c -f -force" ]
+      initContainers:
+      - name: init-solr-data
+        image: busybox
+        env:
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        command: ['sh', '-c', 'mkdir -p /data/data/${HOSTNAME} && chown 8983:8983 /data/data/$HOSTNAME; mkdir -p /data/logs && chown 8983:8983 /data/logs']
+        volumeMounts:
+        - name: volsolr
+          mountPath: /data
+      - name: init-solr-xml
+        image: solr:8.0.0
+        env:
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name                         
+        command: ['sh', '-c', '[ ! -f /data/data/${HOSTNAME}/solr.xml ] && cp /opt/solr/server/solr/solr.xml /data/data/${HOSTNAME}/solr.xml || true']
+        volumeMounts:
+        - name: volsolr
+          mountPath: /data
+---
+# Headless service
+apiVersion: v1
+kind: Service
+metadata:
+  name: solr
+spec:
+  ports:
+  - port: 8983
+  clusterIP: None
+  selector:
+    app: solr-app
+
+---
+# External Service used to access external endpoint
+apiVersion: v1
+kind: Service
+metadata:
+    name: solr-svc-public
+spec:
+    type: LoadBalancer
+    ports:
+      - port: 8983
+        targetPort: client
+    selector:
+        app: solr-app
+
+---
+# Internal service, which other Pods can connect with
+apiVersion: v1
+kind: Service
+metadata:
+  name: solr-service
+spec:
+  ports:
+  - port: 8983
+    targetPort: 8983
+    nodePort: 30983
+    protocol: TCP
+  selector:
+    app: solr-app
+  type: NodePort

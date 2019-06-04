@@ -1,0 +1,72 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: zookeeper-ss
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper-app # has to match .spec.template.metadata.labels
+  serviceName: "zookeeper-service"
+  replicas: 1 # by default is 1
+  template:
+    metadata:
+      labels:
+        app: zookeeper-app # has to match .spec.selector.matchLabels
+    spec:
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: volzookeeper
+        persistentVolumeClaim:
+          claimName: solr-pv-claim
+      containers:
+      - name: zookeeper
+        image: zookeeper:latest
+        volumeMounts:
+        - name: volzookeeper
+          mountPath: /mnt/persistent-volume
+        ports:
+        - name: zookeeper-port
+          containerPort: 2181
+        env:
+          - name: ZOO_LOG_DIR
+            value: "/mnt/persistent-volume/logs"
+          - name: ZOO_DATA_DIR
+            value: "/mnt/persistent-volume/zk_data_log"
+          - name: ZOO_DATA_LOG_DIR
+            value: "/mnt/persistent-volume/zk_data"
+          - name: ZOO_PORT
+            value: "32181"
+      initContainers:
+      - name: init-zookeeper-data
+        image: busybox
+        command: ['sh', '-c', 'mkdir -p /mnt/persistent-volume/zk_data && chown 1000:1000 /mnt/persistent-volume/zk_data']
+        volumeMounts:
+        - name: volzookeeper
+          mountPath: /mnt/persistent-volume
+      - name: init-zookeeper-logs
+        image: busybox
+        command: ['sh', '-c', 'mkdir -p /mnt/persistent-volume/logs && chown 1000:1000 /mnt/persistent-volume/logs']
+        volumeMounts:
+        - name: volzookeeper
+          mountPath: /mnt/persistent-volume
+      - name: init-zookeeper-datalog
+        image: busybox
+        command: ['sh', '-c', 'mkdir -p /mnt/persistent-volume/zk_data_log && chown 1000:1000 /mnt/persistent-volume/zk_data_log']
+        volumeMounts:
+        - name: volzookeeper
+          mountPath: /mnt/persistent-volume
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-service
+spec:
+  ports:
+  - port: 32181
+    targetPort: 32181
+    nodePort: 32181
+    protocol: TCP
+  selector:
+    app: zookeeper-app
+  type: NodePort
