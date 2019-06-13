@@ -26,7 +26,7 @@ spec:
           mountPath: /data
         ports:
         - name: solr-port
-          containerPort: 32181
+          containerPort: 8983
         livenessProbe:
           initialDelaySeconds: 20
           periodSeconds: 10
@@ -45,7 +45,7 @@ spec:
           - name: SOLR_PORT
             value: "8983"
           - name: ZK_HOST
-            value: "zookeeper-service:32181"
+            value: "zookeeper-service:2181"
           - name: HOSTNAME
             valueFrom:
               fieldRef:
