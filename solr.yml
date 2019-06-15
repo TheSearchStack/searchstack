@@ -18,9 +18,15 @@ spec:
       - name: volsolr
         persistentVolumeClaim:
           claimName: solr-pv-claim
+      - name: config-volume
+        configMap:
+          name: solr-xml
+          items:
+          - key: solr.xml
+            path: solr.xml        
       containers:
       - name: solr
-        image: solr:8.0.0
+        image: searchstack/solr:8.2
         volumeMounts:
         - name: volsolr
           mountPath: /data
@@ -65,16 +71,18 @@ spec:
         - name: volsolr
           mountPath: /data
       - name: init-solr-xml
-        image: solr:8.0.0
+        image: busybox
         env:
           - name: HOSTNAME
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name                         
-        command: ['sh', '-c', '[ ! -f /data/data/${HOSTNAME}/solr.xml ] && cp /opt/solr/server/solr/solr.xml /data/data/${HOSTNAME}/solr.xml || true']
+        command: ['sh', '-c', '[ ! -f /data/data/${HOSTNAME}/solr.xml ] && cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml || true']
         volumeMounts:
         - name: volsolr
           mountPath: /data
+        - name: config-volume
+          mountPath: /etc/config
 ---
 # Headless service
 apiVersion: v1
