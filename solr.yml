@@ -1,3 +1,48 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configs
+data:
+  start.sh: |-
+    #!/bin/bash
+    export SOLR_HOST=${HOSTNAME}.solr.default.svc.cluster.local
+    export SOLR_HOME=/data/data/${HOSTNAME}
+    export SOLR_LOGS_DIR=/data/logs/${HOSTNAME}
+    cp /opt/solr/dist/solr-jaegertracer-configurator-*.jar /opt/solr/server/solr-webapp/webapp/WEB-INF/lib
+    cp /opt/solr/contrib/jaegertracer-configurator/lib/*.jar /opt/solr/server/solr-webapp/webapp/WEB-INF/lib
+    /opt/solr/bin/solr -c -f -force
+
+  solr.xml: |-
+    <solr>
+      <int name="maxBooleanClauses">${solr.max.booleanClauses:1024}</int>
+      <solrcloud>
+        <str name="host">${host:}</str>
+        <int name="hostPort">${jetty.port:8983}</int>
+        <str name="hostContext">${hostContext:solr}</str>
+        <bool name="genericCoreNodeNames">${genericCoreNodeNames:true}</bool>
+        <int name="zkClientTimeout">${zkClientTimeout:30000}</int>
+        <int name="distribUpdateSoTimeout">${distribUpdateSoTimeout:600000}</int>
+        <int name="distribUpdateConnTimeout">${distribUpdateConnTimeout:60000}</int>
+        <str name="zkCredentialsProvider">${zkCredentialsProvider:org.apache.solr.common.cloud.DefaultZkCredentialsProvider}</str>
+        <str name="zkACLProvider">${zkACLProvider:org.apache.solr.common.cloud.DefaultZkACLProvider}</str>
+      </solrcloud>
+      <shardHandlerFactory name="shardHandlerFactory"
+        class="HttpShardHandlerFactory">
+        <int name="socketTimeout">${socketTimeout:600000}</int>
+        <int name="connTimeout">${connTimeout:60000}</int>
+        <str name="shardsWhitelist">${solr.shardsWhitelist:}</str>
+      </shardHandlerFactory>
+      <tracerConfig name="tracerConfig" class="org.apache.solr.jaeger.JaegerTracerConfigurator">
+        <str name="agentHost">jaeger-agent</str>
+        <int name="agentPort">5775</int>
+        <bool name="logSpans">true</bool>
+        <int name="flushInterval">1000</int>
+        <int name="maxQueueSize">10000</int>
+      </tracerConfig>
+    </solr>
+
+---
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
@@ -18,10 +63,16 @@ spec:
       - name: volsolr
         persistentVolumeClaim:
           claimName: solr-pv-claim
+      - name: configs-volume
+        configMap:
+          defaultMode: 0700
+          name: configs
       containers:
       - name: solr
-        image: solr:8.0.0
+        image: searchstack/solr:8.2
         volumeMounts:
+        - name: configs-volume
+          mountPath: /etc/config
         - name: volsolr
           mountPath: /data
         ports:
@@ -50,8 +101,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-        command: ["/bin/sh","-c"]
-        args: [ "export SOLR_HOST=${HOSTNAME}.solr.default.svc.cluster.local; export SOLR_HOME=/data/data/${HOSTNAME}; export SOLR_LOGS_DIR=/data/logs/${HOSTNAME}; /opt/solr/bin/solr -c -f -force" ]
+        command:
+          - /etc/config/start.sh        
       initContainers:
       - name: init-solr-data
         image: busybox
@@ -65,16 +116,18 @@ spec:
         - name: volsolr
           mountPath: /data
       - name: init-solr-xml
-        image: solr:8.0.0
+        image: busybox
         env:
           - name: HOSTNAME
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name                         
-        command: ['sh', '-c', '[ ! -f /data/data/${HOSTNAME}/solr.xml ] && cp /opt/solr/server/solr/solr.xml /data/data/${HOSTNAME}/solr.xml || true']
+        command: ['sh', '-c', 'cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml']
         volumeMounts:
         - name: volsolr
           mountPath: /data
+        - name: configs-volume
+          mountPath: /etc/config
 ---
 # Headless service
 apiVersion: v1
