@@ -122,7 +122,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name                         
-        command: ['sh', '-c', '[ ! -f /data/data/${HOSTNAME}/solr.xml ] && cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml || true']
+        command: ['sh', '-c', 'cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml']
         volumeMounts:
         - name: volsolr
           mountPath: /data
