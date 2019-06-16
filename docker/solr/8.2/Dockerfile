@@ -37,8 +37,6 @@ RUN set -e; \
   wget -nv "$SOLR_URL" -O "/opt/solr-$SOLR_VERSION.tgz" && \
   tar -C /opt --extract --file "/opt/solr-$SOLR_VERSION.tgz" && \
   (cd /opt && ln -s "solr-$SOLR_VERSION" solr) && \
-  cp /opt/solr/dist/solr-jaegertracer-configurator-*.jar /opt/solr/server/solr-webapp/webapp/WEB-INF/lib && \
-  cp /opt/solr/contrib/jaegertracer-configurator/lib/*.jar /opt/solr/server/solr-webapp/webapp/WEB-INF/lib && \
   rm "/opt/solr-$SOLR_VERSION.tgz"* && \
   rm -Rf /opt/solr/docs/ && \
   mkdir -p /opt/solr/server/solr/lib /docker-entrypoint-initdb.d /opt/docker-solr && \
