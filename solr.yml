@@ -43,7 +43,7 @@ data:
     </solr>
 
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: solr
@@ -102,7 +102,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.name
         command:
-          - /etc/config/start.sh        
+          - /data/start-solr.sh
       initContainers:
       - name: init-solr-data
         image: busybox
@@ -122,7 +122,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name                         
-        command: ['sh', '-c', 'cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml']
+        command: ['sh', '-c', 'cp /etc/config/solr.xml /data/data/${HOSTNAME}/solr.xml; chmod 777 /data/data/${HOSTNAME}/solr.xml; cp /etc/config/start.sh /data/start-solr.sh; chmod 777 /data/start-solr.sh']
         volumeMounts:
         - name: volsolr
           mountPath: /data
